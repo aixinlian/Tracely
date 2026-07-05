@@ -27,6 +27,7 @@ import { db, type Report, type ReportPeriod } from "@/lib/db";
 import { addReport, removeReport, updateReport } from "@/lib/reports";
 import { getPeriodLabel, formatDateRange } from "@/lib/period";
 import { chatCompletion } from "@/lib/ai";
+import { validateProviderConfig } from "@/lib/validation";
 import { cn } from "@/lib/utils";
 
 type LocalChatMessage = {
@@ -536,6 +537,14 @@ function PreviewModal({ report, onClose, onDelete }: PreviewModalProps) {
   async function handleRefine() {
     const msg = chatInput.trim();
     if (!msg || refiningRef.current) return;
+
+    // Validate provider configuration before refining
+    const validation = await validateProviderConfig();
+    if (!validation.isValid) {
+      toast.error(validation.message || "配置验证失败");
+      return;
+    }
+
     refiningRef.current = true;
     setRefining(true);
     historyRef.current.push(msg);

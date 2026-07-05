@@ -25,7 +25,7 @@ export function WindowControls() {
   }, []);
 
   return (
-    <div className="flex items-center" data-tauri-drag-region={false}>
+    <div className="flex items-stretch self-stretch" data-tauri-drag-region={false}>
       <ControlButton label="最小化" onClick={() => appWindow.minimize()}>
         <Minus className="size-3.5" />
       </ControlButton>
@@ -67,7 +67,7 @@ function ControlButton({
       aria-label={label}
       onClick={onClick}
       className={cn(
-        "flex h-8 w-11 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+        "flex h-full w-11 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
         className,
       )}
     >

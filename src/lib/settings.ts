@@ -87,8 +87,8 @@ export async function clearAllData(): Promise<void> {
   localStorage.removeItem(GIT_AUTHOR_KEY);
   localStorage.removeItem(THEME_KEY);
 
-  // Clear any other localStorage keys that might exist
-  // You can add more keys here if needed
+  // Clear log files written by the Rust side (tracing-appender)
+  await invoke("clear_logs");
 }
 
 // Re-export autostart controls so the UI imports from one place.

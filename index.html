@@ -18,10 +18,36 @@
         } catch (e) {}
       })();
     </script>
+    <style>
+      /* Boot loader painted on first HTML parse, before the JS bundle loads.
+         React replaces #root's contents on first render, wiping it out. */
+      #app-loader {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #app-loader .spinner {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        border: 3px solid oklch(0.55 0 0 / 0.25);
+        border-top-color: oklch(0.55 0 0);
+        animation: app-loader-spin 0.7s linear infinite;
+      }
+      @keyframes app-loader-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="app-loader"><div class="spinner"></div></div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

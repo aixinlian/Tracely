@@ -3,6 +3,7 @@ import { Dialog } from "@base-ui/react/dialog";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
   Cpu,
+  FolderOpen,
   Loader2,
   Pencil,
   Plus,
@@ -21,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, EmptyState, PageHeader } from "@/components/page/primitives";
+import { toast } from "@/components/ui/toast";
 import { db, type Provider } from "@/lib/db";
 import {
   addProvider,
@@ -38,6 +40,7 @@ import {
   setGitAuthor,
   clearAllData,
 } from "@/lib/settings";
+import { openLogDir } from "@/lib/logs";
 
 /** Preset providers with their default endpoints, for the name dropdown. */
 const PROVIDER_PRESETS: { name: string; endpoint: string }[] = [
@@ -91,6 +94,7 @@ export default function Settings() {
           />
           <AutostartRow />
           <GitAuthorRow />
+          <LogDirectoryRow />
           <ClearCacheRow />
         </Card>
       </div>
@@ -144,6 +148,49 @@ function AutostartRow() {
           disabled={enabled === null || busy}
         >
           {enabled === null ? "…" : enabled ? "已开启" : "未开启"}
+        </Button>
+      }
+    />
+  );
+}
+
+function LogDirectoryRow() {
+  const [opening, setOpening] = useState(false);
+
+  async function handleOpenLogDir() {
+    setOpening(true);
+    try {
+      await openLogDir();
+    } catch (e) {
+      console.error("打开日志目录失败", e);
+      toast.error(`打开失败：${String(e)}`);
+    } finally {
+      setOpening(false);
+    }
+  }
+
+  return (
+    <SettingRow
+      title="日志目录"
+      description="查看应用运行日志，用于问题排查与调试。"
+      control={
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleOpenLogDir}
+          disabled={opening}
+        >
+          {opening ? (
+            <>
+              <Loader2 className="size-4 animate-spin" />
+              打开中...
+            </>
+          ) : (
+            <>
+              <FolderOpen className="size-4" />
+              打开日志目录
+            </>
+          )}
         </Button>
       }
     />

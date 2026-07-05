@@ -12,6 +12,7 @@ import { getRepoActivity, type RepoActivity } from "@/lib/git";
 import { getPeriodRange, getPeriodLabel, formatDateRange } from "@/lib/period";
 import { addReport, updateReport, findExistingReport } from "@/lib/reports";
 import { resolveGitAuthor } from "@/lib/settings";
+import { validateProviderConfig } from "@/lib/validation";
 
 /**
  * Report generation is lifted out of the Daily page into an app-level context
@@ -222,6 +223,18 @@ export function ReportGenerationProvider({ children }: { children: ReactNode }) 
   const refine = useCallback(
     async (userMessage: string) => {
       if (runningRef.current || !content || !resultPeriod) return;
+
+      // Validate provider configuration before refining
+      const validation = await validateProviderConfig();
+      if (!validation.isValid) {
+        setChatMessages((prev) => [
+          ...prev,
+          { role: "user", content: userMessage },
+          { role: "assistant", content: `⚠️ ${validation.message}` },
+        ]);
+        return;
+      }
+
       runningRef.current = true;
       setRefining(true);
 

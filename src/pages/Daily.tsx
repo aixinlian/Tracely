@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, EmptyState, PageHeader, StatCard } from "@/components/page/primitives";
+import { toast } from "@/components/ui/toast";
 import { db, type ReportPeriod } from "@/lib/db";
 import {
   getPeriodRange,
@@ -25,6 +26,7 @@ import {
   useReportGeneration,
   type ChatMessage,
 } from "@/components/report-generation-provider";
+import { validateReportGeneration } from "@/lib/validation";
 import { cn } from "@/lib/utils";
 
 const PERIOD_OPTIONS: { value: ReportPeriod; label: string; icon: typeof Calendar }[] = [
@@ -210,6 +212,16 @@ export default function DailyReport() {
   const totalProjects = projects?.length ?? 0;
   const totalReports = reports ?? 0;
 
+  async function handleGenerate(period: ReportPeriod, forceRegenerate = false) {
+    // Validate configuration before generating
+    const validation = await validateReportGeneration();
+    if (!validation.isValid) {
+      toast.error(validation.message || "配置验证失败");
+      return;
+    }
+    await generate(period, forceRegenerate);
+  }
+
   async function handleCopy() {
     if (!showContent) return;
     try {
@@ -227,7 +239,7 @@ export default function DailyReport() {
         title="生成报告"
         description="根据所有项目的 Git 提交记录与未提交改动，快速生成工作报告。"
         action={
-          <Button onClick={() => generate(period)} disabled={generating}>
+          <Button onClick={() => handleGenerate(period)} disabled={generating}>
             {generating ? (
               <>
                 <Loader2 className="size-4 animate-spin" />
@@ -300,7 +312,7 @@ export default function DailyReport() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => generate(period, true)}
+                  onClick={() => handleGenerate(period, true)}
                   disabled={generating}
                 >
                   {generating ? (
