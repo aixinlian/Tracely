@@ -3,6 +3,23 @@ use std::process::Command;
 
 use serde::Serialize;
 
+/// Build a `git` command. On Windows, apply `CREATE_NO_WINDOW` so invoking git
+/// doesn't flash a console window on screen for a fraction of a second.
+fn git_command() -> Command {
+    let cmd = Command::new("git");
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        // CREATE_NO_WINDOW: run the child without allocating a console window.
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let mut cmd = cmd;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+        return cmd;
+    }
+    #[cfg(not(windows))]
+    cmd
+}
+
 #[derive(Serialize)]
 pub struct DiscoveredRepo {
     /// Absolute path of the git repository.
@@ -37,7 +54,7 @@ pub struct RepoActivity {
 
 /// Run `git` inside `repo` and return stdout, or an error string on failure.
 fn run_git(repo: &Path, args: &[&str]) -> Result<String, String> {
-    let output = Command::new("git")
+    let output = git_command()
         .args(args)
         .current_dir(repo)
         .output()
@@ -87,7 +104,7 @@ pub fn list_branches(path: String) -> Result<RepoBranches, String> {
 #[tauri::command]
 pub fn get_git_user_name() -> Result<String, String> {
     // `--global` so it works from any directory, not just inside a repo.
-    let output = Command::new("git")
+    let output = git_command()
         .args(["config", "--global", "user.name"])
         .output()
         .map_err(|e| format!("无法执行 git，请确认已安装：{e}"))?;
