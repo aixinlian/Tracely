@@ -128,8 +128,23 @@
     }
   body {
     @apply bg-background text-foreground;
+    /* 桌面端禁止文本选中，提升应用体验 */
+    user-select: none;
+    -webkit-user-select: none;
     }
   html {
     @apply font-sans;
     }
+
+  /* 允许输入框、文本域选中 */
+  input, textarea {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
+  /* 允许日报内容区域选中和复制 */
+  .report-content {
+    user-select: text;
+    -webkit-user-select: text;
+  }
 }

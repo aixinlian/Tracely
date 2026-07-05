@@ -10,7 +10,7 @@ import { db, type ReportPeriod } from "@/lib/db";
 import { chatCompletion } from "@/lib/ai";
 import { getRepoActivity, type RepoActivity } from "@/lib/git";
 import { getPeriodRange, getPeriodLabel, formatDateRange } from "@/lib/period";
-import { addReport, findExistingReport } from "@/lib/reports";
+import { addReport, updateReport, findExistingReport } from "@/lib/reports";
 import { resolveGitAuthor } from "@/lib/settings";
 
 /**
@@ -20,6 +20,12 @@ import { resolveGitAuthor } from "@/lib/settings";
  * resulting content are still here.
  */
 
+export type ChatMessage = {
+  role: "user" | "assistant";
+  /** user: the raw instruction; assistant: the full updated report content */
+  content: string;
+};
+
 type GenerationState = {
   /** Whether a generation is currently running. */
   generating: boolean;
@@ -28,10 +34,17 @@ type GenerationState = {
   error: string | null;
   /** The period whose content is currently held, so the page can match display. */
   resultPeriod: ReportPeriod | null;
+  /** Whether the current content is from cache (existing report). */
+  isFromCache: boolean;
+  /** Follow-up chat messages after the initial generation. */
+  chatMessages: ChatMessage[];
+  /** Whether a follow-up refinement is in progress. */
+  refining: boolean;
 };
 
 type ReportGenerationContextValue = GenerationState & {
-  generate: (period: ReportPeriod) => Promise<void>;
+  generate: (period: ReportPeriod, forceRegenerate?: boolean) => Promise<void>;
+  refine: (userMessage: string) => Promise<void>;
   reset: () => void;
 };
 
@@ -78,14 +91,29 @@ function buildPrompt(
     }
   }
 
-  prompt += `\n请用中文生成一份${periodLabel}，包括：\n`;
-  prompt += `1. 工作概述（2-3 句话总结主要工作）\n`;
-  prompt += `2. 按项目分类的详细工作内容（列出关键提交和改动）\n`;
-  prompt += `3. 遇到的问题与解决方案（如果有）\n`;
-  prompt += `4. 下一步计划（可选）\n\n`;
-  prompt += `使用 Markdown 格式，语言简洁、专业。`;
+  prompt += `\n请用中文生成一份${periodLabel}，要求：\n`;
+  prompt += `1. 使用列表格式，每一条代表一项具体工作\n`;
+  prompt += `2. 每条以序号开头，描述具体做了什么（例如："1. 企业人员档案模型添加上传者和文件大小并推送至线上数据库"）\n`;
+  prompt += `3. 不要分项目分类，将所有工作按重要性或时间顺序排列\n`;
+  prompt += `4. 每条工作描述要具体、清晰，包含关键的技术点或功能点\n`;
+  prompt += `5. 语言简洁、专业，避免冗长的段落\n\n`;
+  prompt += `输出格式示例：\n`;
+  prompt += `1. 完成了某某功能模块的开发和测试\n`;
+  prompt += `2. 修复了某某页面的样式问题\n`;
+  prompt += `3. 优化了某某接口的性能\n\n`;
+  prompt += `请直接输出工作列表，不需要标题和总结。`;
 
   return prompt;
+}
+
+function buildRefinePrompt(currentContent: string, userMessage: string): string {
+  return (
+    `以下是当前已生成的工作报告：\n` +
+    `---\n${currentContent}\n---\n\n` +
+    `用户要求：${userMessage}\n\n` +
+    `请根据用户的要求修改报告，直接输出修改后的完整工作列表，` +
+    `格式与原报告保持一致（以序号开头的列表），不需要额外的标题或说明。`
+  );
 }
 
 export function ReportGenerationProvider({ children }: { children: ReactNode }) {
@@ -93,11 +121,14 @@ export function ReportGenerationProvider({ children }: { children: ReactNode }) 
   const [content, setContent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [resultPeriod, setResultPeriod] = useState<ReportPeriod | null>(null);
+  const [isFromCache, setIsFromCache] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [refining, setRefining] = useState(false);
 
-  // Guard against overlapping generations (e.g. rapid double clicks).
+  // Guard against overlapping generations / refinements.
   const runningRef = useRef(false);
 
-  const generate = useCallback(async (period: ReportPeriod) => {
+  const generate = useCallback(async (period: ReportPeriod, forceRegenerate = false) => {
     if (runningRef.current) return;
     runningRef.current = true;
 
@@ -122,11 +153,16 @@ export function ReportGenerationProvider({ children }: { children: ReactNode }) 
     setError(null);
     setContent(null);
     setResultPeriod(period);
+    setIsFromCache(false);
+    setChatMessages([]); // Clear chat history on fresh generation
 
     try {
       const existing = await findExistingReport(period, range.start, range.end);
-      if (existing) {
+      if (existing && !forceRegenerate) {
         setContent(existing.content);
+        setIsFromCache(true);
+        setGenerating(false);
+        runningRef.current = false;
         return;
       }
 
@@ -160,15 +196,21 @@ export function ReportGenerationProvider({ children }: { children: ReactNode }) 
       });
 
       setContent(generated);
+      setIsFromCache(false);
 
-      await addReport({
-        period,
-        startDate: range.start,
-        endDate: range.end,
-        content: generated,
-        projectIds: projects.map((p) => p.id),
-        providerId: defaultProvider.id,
-      });
+      // If regenerating, update existing report instead of creating a new one
+      if (forceRegenerate && existing) {
+        await updateReport(existing.id, { content: generated });
+      } else {
+        await addReport({
+          period,
+          startDate: range.start,
+          endDate: range.end,
+          content: generated,
+          projectIds: projects.map((p) => p.id),
+          providerId: defaultProvider.id,
+        });
+      }
     } catch (e) {
       setError(`生成失败：${String(e)}`);
     } finally {
@@ -177,15 +219,84 @@ export function ReportGenerationProvider({ children }: { children: ReactNode }) 
     }
   }, []);
 
+  const refine = useCallback(
+    async (userMessage: string) => {
+      if (runningRef.current || !content || !resultPeriod) return;
+      runningRef.current = true;
+      setRefining(true);
+
+      // Append user message to chat history immediately so the UI feels responsive.
+      setChatMessages((prev) => [...prev, { role: "user", content: userMessage }]);
+
+      try {
+        const providers = await db.providers.toArray();
+        const defaultProvider = providers.find((p) => p.defaultModel);
+        if (!defaultProvider) {
+          throw new Error("未找到 AI 供应商，请先在「系统设置」中配置。");
+        }
+
+        const prompt = buildRefinePrompt(content, userMessage);
+        const updated = await chatCompletion({
+          endpoint: defaultProvider.endpoint,
+          apiKey: defaultProvider.apiKey,
+          model: defaultProvider.defaultModel || defaultProvider.models[0] || "",
+          prompt,
+        });
+
+        setContent(updated);
+
+        // Append assistant acknowledgement to chat history.
+        setChatMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: updated },
+        ]);
+
+        // Persist the updated content to the DB.
+        const range = getPeriodRange(resultPeriod);
+        const existing = await findExistingReport(
+          resultPeriod,
+          range.start,
+          range.end,
+        );
+        if (existing) {
+          await updateReport(existing.id, { content: updated });
+        }
+      } catch (e) {
+        // Show error in chat instead of the global error banner.
+        setChatMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: `⚠️ 请求失败：${String(e)}` },
+        ]);
+      } finally {
+        setRefining(false);
+        runningRef.current = false;
+      }
+    },
+    [content, resultPeriod],
+  );
+
   const reset = useCallback(() => {
     setContent(null);
     setError(null);
     setResultPeriod(null);
+    setIsFromCache(false);
+    setChatMessages([]);
   }, []);
 
   return (
     <ReportGenerationContext.Provider
-      value={{ generating, content, error, resultPeriod, generate, reset }}
+      value={{
+        generating,
+        content,
+        error,
+        resultPeriod,
+        isFromCache,
+        chatMessages,
+        refining,
+        generate,
+        refine,
+        reset,
+      }}
     >
       {children}
     </ReportGenerationContext.Provider>

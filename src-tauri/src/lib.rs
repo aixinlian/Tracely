@@ -23,6 +23,7 @@ fn open_data_dir(app: tauri::AppHandle, path: String) -> Result<(), String> {
 pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init());
 
     // Autostart is a desktop-only capability.

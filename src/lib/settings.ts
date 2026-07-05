@@ -7,9 +7,11 @@ import {
 } from "@tauri-apps/plugin-autostart";
 import { pickFolder } from "@/lib/pick-folder";
 import { getGitUserName } from "@/lib/git";
+import { db } from "@/lib/db";
 
 const DATA_DIR_KEY = "tracely-data-dir";
 const GIT_AUTHOR_KEY = "tracely-git-author";
+const THEME_KEY = "tracely-theme";
 
 /**
  * The user-chosen data directory, or the platform default app data dir when
@@ -70,6 +72,23 @@ export async function resolveGitAuthor(): Promise<string> {
   } catch {
     return "";
   }
+}
+
+/**
+ * Clear all application data including database and localStorage.
+ * This will delete all projects, providers, reports, and settings.
+ */
+export async function clearAllData(): Promise<void> {
+  // Clear IndexedDB (Dexie database)
+  await db.delete();
+
+  // Clear localStorage
+  localStorage.removeItem(DATA_DIR_KEY);
+  localStorage.removeItem(GIT_AUTHOR_KEY);
+  localStorage.removeItem(THEME_KEY);
+
+  // Clear any other localStorage keys that might exist
+  // You can add more keys here if needed
 }
 
 // Re-export autostart controls so the UI imports from one place.

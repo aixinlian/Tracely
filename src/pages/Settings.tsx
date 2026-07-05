@@ -3,12 +3,10 @@ import { Dialog } from "@base-ui/react/dialog";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
   Cpu,
-  FolderOpen,
   Loader2,
   Pencil,
   Plus,
   RefreshCw,
-  RotateCcw,
   Server,
   Trash2,
   UserRound,
@@ -33,16 +31,12 @@ import {
 import { listModels } from "@/lib/ai";
 import { getGitUserName } from "@/lib/git";
 import {
-  chooseDataDir,
   disableAutostart,
   enableAutostart,
-  getDataDir,
-  hasCustomDataDir,
   isAutostartEnabled,
-  openDataDir,
-  resetDataDir,
   resolveGitAuthor,
   setGitAuthor,
+  clearAllData,
 } from "@/lib/settings";
 
 /** Preset providers with their default endpoints, for the name dropdown. */
@@ -97,7 +91,7 @@ export default function Settings() {
           />
           <AutostartRow />
           <GitAuthorRow />
-          <DataDirRow />
+          <ClearCacheRow />
         </Card>
       </div>
 
@@ -156,79 +150,94 @@ function AutostartRow() {
   );
 }
 
-function DataDirRow() {
-  const [dir, setDir] = useState<string>("");
-  const [custom, setCustom] = useState(false);
+function ClearCacheRow() {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
-  useEffect(() => {
-    let alive = true;
-    getDataDir()
-      .then((d) => alive && setDir(d))
-      .catch(() => {});
-    setCustom(hasCustomDataDir());
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  async function handleChoose() {
-    const selected = await chooseDataDir();
-    if (selected) {
-      setDir(selected);
-      setCustom(true);
+  async function handleClear() {
+    setClearing(true);
+    try {
+      await clearAllData();
+      setConfirmOpen(false);
+      // 刷新页面以重新加载空白状态
+      window.location.reload();
+    } catch (e) {
+      console.error("清除缓存失败", e);
+      alert(`清除失败：${String(e)}`);
+    } finally {
+      setClearing(false);
     }
   }
 
-  async function handleReset() {
-    resetDataDir();
-    setCustom(false);
-    setDir(await getDataDir());
-  }
-
   return (
-    <div className="px-5 py-4">
-      <div className="flex items-center justify-between gap-4">
-        <div className="min-w-0 space-y-0.5">
-          <p className="text-sm font-medium">数据目录</p>
-          <p className="text-sm text-muted-foreground">
-            本地日报与项目数据的存储位置。
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {custom ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleReset}
-              title="恢复默认目录"
-            >
-              <RotateCcw className="size-4" />
-              恢复默认
-            </Button>
-          ) : null}
-          <Button variant="outline" size="sm" onClick={handleChoose}>
-            <FolderOpen className="size-4" />
-            选择
-          </Button>
+    <>
+      <SettingRow
+        title="清除缓存"
+        description="清除所有本地数据，包括项目、供应商、报告和设置。"
+        control={
           <Button
             variant="outline"
             size="sm"
-            onClick={() => dir && openDataDir(dir)}
-            disabled={!dir}
+            onClick={() => setConfirmOpen(true)}
+            className="text-destructive hover:bg-destructive/10"
           >
-            打开目录
+            <Trash2 className="size-4" />
+            清除所有数据
           </Button>
-        </div>
-      </div>
-      {dir ? (
-        <p
-          className="mt-2 truncate rounded-lg bg-muted/40 px-2.5 py-1.5 text-xs text-muted-foreground"
-          title={dir}
-        >
-          {dir}
-        </p>
-      ) : null}
-    </div>
+        }
+      />
+
+      <Dialog.Root open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <Dialog.Portal>
+          <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm transition-opacity duration-150 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
+          <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border/60 bg-popover p-5 text-popover-foreground shadow-2xl outline-none transition-all duration-150 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0">
+            <Dialog.Title className="text-base font-semibold text-destructive">
+              确认清除所有数据
+            </Dialog.Title>
+            <Dialog.Description className="mt-2 text-sm text-muted-foreground">
+              此操作将永久删除：
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                <li>所有项目配置</li>
+                <li>所有 AI 供应商配置</li>
+                <li>所有历史报告</li>
+                <li>应用设置（主题、Git 用户名等）</li>
+              </ul>
+              <p className="mt-3 font-medium text-destructive">
+                此操作不可撤销，确定要继续吗？
+              </p>
+            </Dialog.Description>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setConfirmOpen(false)}
+                disabled={clearing}
+              >
+                取消
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleClear}
+                disabled={clearing}
+              >
+                {clearing ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    清除中...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="size-4" />
+                    确认清除
+                  </>
+                )}
+              </Button>
+            </div>
+          </Dialog.Popup>
+        </Dialog.Portal>
+      </Dialog.Root>
+    </>
   );
 }
 
