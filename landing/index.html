@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="./tracely.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Tracely 简迹 — 自动从 Git 提交记录生成工作日报的本地优先开发者工具。数据全在本地，代码不外传。"
+    />
+    <title>Tracely · 简迹 — 从 Git 记录自动生成工作日报</title>
+    <script>
+      // Apply theme before paint to avoid a flash (default: light).
+      (function () {
+        try {
+          var t = localStorage.getItem("tracely-theme");
+          var dark = t === "dark";
+          document.documentElement.classList.toggle("dark", dark);
+          document.documentElement.style.backgroundColor = dark
+            ? "oklch(0.145 0 0)"
+            : "oklch(1 0 0)";
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./main.tsx"></script>
+  </body>
+</html>
