@@ -2,7 +2,9 @@ mod ai;
 mod git;
 
 use std::path::PathBuf;
-use tauri::Manager;
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::{Manager, WindowEvent};
 use tracing::{info, error};
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
@@ -127,6 +129,28 @@ fn get_log_dir(app: tauri::AppHandle) -> Result<String, String> {
         .ok_or_else(|| "无法获取日志目录路径".to_string())
 }
 
+/// Show and focus the main window, restoring it if it was minimized.
+fn show_main_window(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
+/// Toggle the main window's visibility: hide it if visible, otherwise show and focus it.
+fn toggle_main_window(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        if window.is_visible().unwrap_or(false) {
+            let _ = window.hide();
+        } else {
+            let _ = window.unminimize();
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
@@ -143,8 +167,49 @@ pub fn run() {
                 });
             init_logging(log_dir);
 
+            // Build the system tray icon, menu, and event handlers.
+            let toggle_item = MenuItem::with_id(app, "toggle", "显示/隐藏窗口", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&toggle_item, &quit_item])?;
+
+            TrayIconBuilder::new()
+                .icon(app.default_window_icon().unwrap().clone())
+                .tooltip("Tracely")
+                .menu(&menu)
+                // Show the menu on right-click only; left-click toggles the window.
+                .show_menu_on_left_click(false)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "toggle" => toggle_main_window(app),
+                    "quit" => {
+                        info!("Quit requested from tray menu");
+                        app.exit(0);
+                    }
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        show_main_window(tray.app_handle());
+                    }
+                })
+                .build(app)?;
+
             info!("Application setup completed");
             Ok(())
+        })
+        // Intercept window close: hide to tray instead of exiting the app.
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main" {
+                    info!("Close requested; hiding window to tray");
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
         });
 
     // Autostart is a desktop-only capability.
@@ -165,7 +230,6 @@ pub fn run() {
             ai::list_models,
             open_data_dir,
             get_log_dir,
-            clear_logs,
             clear_logs
         ])
         .run(tauri::generate_context!())
