@@ -1,0 +1,35 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>Tracely</title>
+  <defs>
+    <linearGradient id="tracelyBg" x1="72" y1="56" x2="448" y2="472" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4DA3FF"/>
+      <stop offset="1" stop-color="#1366D6"/>
+    </linearGradient>
+    <linearGradient id="tracelySheen" x1="256" y1="0" x2="256" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.16"/>
+      <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- rounded-square app tile with sky-blue brand gradient -->
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#tracelyBg)"/>
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#tracelySheen)"/>
+
+  <!-- report sheet -->
+  <rect x="150" y="120" width="212" height="272" rx="28" fill="#FFFFFF"/>
+
+  <!-- commit timeline down the left margin of the sheet -->
+  <g fill="#1366D6">
+    <circle cx="196" cy="176" r="17"/>
+    <circle cx="196" cy="256" r="17"/>
+    <circle cx="196" cy="336" r="17"/>
+  </g>
+  <rect x="190" y="176" width="12" height="160" rx="6" fill="#4DA3FF"/>
+
+  <!-- report lines to the right of the timeline -->
+  <g fill="#9EC9FF">
+    <rect x="238" y="166" width="86" height="20" rx="10"/>
+    <rect x="238" y="246" width="86" height="20" rx="10"/>
+    <rect x="238" y="326" width="60" height="20" rx="10"/>
+  </g>
+</svg>

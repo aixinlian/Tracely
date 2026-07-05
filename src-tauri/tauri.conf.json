@@ -12,9 +12,14 @@
   "app": {
     "windows": [
       {
-        "title": "tracely",
-        "width": 800,
-        "height": 600
+        "title": "Tracely",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 860,
+        "minHeight": 600,
+        "resizable": true,
+        "center": true,
+        "decorations": false
       }
     ],
     "security": {

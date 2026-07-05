@@ -2,9 +2,22 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/tracely.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tauri + React + Typescript</title>
+    <title>Tracely</title>
+    <script>
+      // Apply theme before paint to avoid a flash on launch (default: dark).
+      (function () {
+        try {
+          var t = localStorage.getItem("tracely-theme");
+          var dark = t !== "light";
+          document.documentElement.classList.toggle("dark", dark);
+          document.documentElement.style.backgroundColor = dark
+            ? "oklch(0.145 0 0)"
+            : "oklch(1 0 0)";
+        } catch (e) {}
+      })();
+    </script>
   </head>
 
   <body>
